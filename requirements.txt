@@ -1,0 +1,11 @@
+fastapi
+aiologger[aiofiles]
+pip-chill
+uvicorn
+gunicorn
+requests 
+beautifulsoup4 
+langchain 
+faiss-cpu 
+transformers 
+sentence-transformers
