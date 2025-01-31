@@ -1,4 +1,5 @@
 import time
+import re
 from typing import List
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -101,7 +102,7 @@ for BASE_URL in BASE_URLs:
 vectorstore = create_rag(texts)
 retriever = vectorstore.as_retriever()
 
-llm = Ollama(model="llama2")
+llm = Ollama(model="llama3.2")
 qa_chain = RetrievalQA.from_chain_type(llm, chain_type="stuff", retriever=retriever)
 
 # Initialize
@@ -150,16 +151,23 @@ async def log_requests(request: Request, call_next):
 async def predict(body: PredictionRequest):
 	try:
 		await logger.info(f"Processing prediction request with id: {body.id}")
-		# Здесь будет вызов вашей модели
-		# ~ answer = 1  # Замените на реальный вызов модели
 		
 		prompt_reason = "Кратко ответь на вопрос, основываясь на знаниях."
-		prompt_answer = "Ответь на вопрос, основываясь на знаниях. Напиши только номер ответа"
+		prompt_answer = "Ответь на вопрос, основываясь на знаниях. Напиши только номер ответа."
 		
+		answer_pattern = r'([A-Z]|\d{1,2})[.)]\s*(.*?)(?=[A-Z]\)|\d{1,2}[.)]|$)'
+		matches = re.findall(answer_pattern, body.query, re.DOTALL | re.IGNORECASE)
+		options = [match[0] for match in matches]
 		
-		reasoning = qa_chain.run(prompt_reason + question)
-		answer = qa_chain.run(prompt_answer + question)
-		
+		await logger.info(f"Successfully processed request {options}")
+		if not options:
+			answer = "null"
+			reasoning = qa_chain.run(prompt_reason + question)
+		else:
+			reasoning = qa_chain.run(prompt_reason + question)
+			answer = qa_chain.run(prompt_answer + question)
+
+
 		sources: List[HttpUrl] = [
 			HttpUrl(i) for i in BASE_URLs
 		]
@@ -167,9 +175,10 @@ async def predict(body: PredictionRequest):
 		response = PredictionResponse(
 			id=body.id,
 			answer=answer,
-			reasoning=reasoning,
+			reasoning=reasoning + " Ответ получен с помощью llama3.2",
 			sources=sources,
 		)
+		
 		await logger.info(f"Successfully processed request {body.id}")
 		return response
 	except ValueError as e:
